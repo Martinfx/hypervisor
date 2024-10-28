@@ -11,70 +11,70 @@
 #include <sys/mutex.h>
 #include <sys/selinfo.h>
 
-#define DEVICE_NAME "myhypervisor"
-static struct cdev *myhypervisor_dev;
+#define DEVICE_NAME "Hypevisor"
+static struct cdev *hypervisor_dev;
 
-static d_open_t     myhypervisor_open;
-static d_close_t    myhypervisor_close;
-static d_read_t     myhypervisor_read;
-static d_write_t    myhypervisor_write;
+static d_open_t     hypervisor_open;
+static d_close_t    hypervisor_close;
+static d_read_t     hypervisor_read;
+static d_write_t    hypervisor_write;
 
-static struct cdevsw myhypervisor_cdevsw = {
+static struct cdevsw hypervisor_cdevsw = {
     .d_version = D_VERSION,
-    .d_open = myhypervisor_open,
-    .d_close = myhypervisor_close,
-    .d_read = myhypervisor_read,
-    .d_write = myhypervisor_write,
+    .d_open = hypervisor_open,
+    .d_close = hypervisor_close,
+    .d_read = hypervisor_read,
+    .d_write = hypervisor_write,
     .d_name = DEVICE_NAME,
 };
 
 static int
-myhypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+hypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
-    printf("[*] myhypervisor: Device opened\n");
+    printf("[*] hypervisor: Device opened\n");
     // Placeholder for VMX enabling operation, FreeBSD specific implementation needed
     // e.g., vmx_enable();
     return 0;
 }
 
 static int
-myhypervisor_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+hypervisor_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
-    printf("[*] myhypervisor: Device closed\n");
+    printf("[*] hypervisor: Device closed\n");
     return 0;
 }
 
 static int
-myhypervisor_read(struct cdev *dev, struct uio *uio, int ioflag)
+hypervisor_read(struct cdev *dev, struct uio *uio, int ioflag)
 {
-    printf("[*] myhypervisor: Read not implemented\n");
+    printf("[*] hypervisor: Read not implemented\n");
     return 0;
 }
 
 static int
-myhypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
+hypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
 {
-    printf("[*] myhypervisor: Write not implemented\n");
+    printf("[*] hypervisor: Write not implemented\n");
     return 0;
 }
 
 static int
-myhypervisor_loader(struct module *m, int event, void *arg)
+hypervisor_loader(struct module *m, int event, void *arg)
 {
     int error = 0;
     switch (event) {
     case MOD_LOAD:
-        printf("[*] Loading myhypervisor module.\n");
-        myhypervisor_dev = make_dev(&myhypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
-        if (!myhypervisor_dev) {
+        printf("[*] Loading hypervisor module.\n");
+        hypervisor_dev = make_dev(&hypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
+        if (!hypervisor_dev) {
             printf("Failed to create device node.\n");
             return ENOMEM;
         }
         break;
     case MOD_UNLOAD:
-        printf("[*] Unloading myhypervisor module.\n");
-        if (myhypervisor_dev) {
-            destroy_dev(myhypervisor_dev);
+        printf("[*] Unloading hypervisor module.\n");
+        if (hypervisor_dev) {
+            destroy_dev(hypervisor_dev);
         }
         break;
     default:
@@ -84,5 +84,5 @@ myhypervisor_loader(struct module *m, int event, void *arg)
     return error;
 }
 
-DEV_MODULE(myhypervisor, myhypervisor_loader, NULL);
+DEV_MODULE(hypervisor, hypervisor_loader, NULL);
 
