@@ -4,6 +4,16 @@
 #include <string.h>
 #include <stdlib.h>
 #include <iostream>
+#include <stdio.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#define IOCTL_SIOCTL_METHOD_BUFFERED _IOW('M', 1, char*)
+#define IOCTL_SIOCTL_METHOD_NEITHER  _IOR('M', 2, char*)
+#define IOCTL_SIOCTL_METHOD_IN_DIRECT _IOWR('M', 3, char*)
+#define IOCTL_SIOCTL_METHOD_OUT_DIRECT _IOR('M', 4, char*)
 
 void GetCpuID(char *vendor)
 {
@@ -50,6 +60,40 @@ int DetectkAmdVSupport() {
 
     // Check if the SVM bit (bit 2 of ECX) is set
     return (ecx & (1 << 2)) != 0;
+}
+
+void TestIoctl(int fd)
+{
+    char input_buffer[100] = "Message from user program";
+    char output_buffer[100] = {0};
+
+    printf("Calling IOCTL METHOD_BUFFERED:\n");
+    if (ioctl(fd, IOCTL_SIOCTL_METHOD_BUFFERED, input_buffer) == -1) {
+        perror("IOCTL METHOD_BUFFERED failed");
+    } else {
+        printf("Output: %s\n", input_buffer);
+    }
+
+    printf("Calling IOCTL METHOD_NEITHER:\n");
+    if (ioctl(fd, IOCTL_SIOCTL_METHOD_NEITHER, output_buffer) == -1) {
+        perror("IOCTL METHOD_NEITHER failed");
+    } else {
+        printf("Output: %s\n", output_buffer);
+    }
+
+    printf("Calling IOCTL METHOD_IN_DIRECT:\n");
+    if (ioctl(fd, IOCTL_SIOCTL_METHOD_IN_DIRECT, input_buffer) == -1) {
+        perror("IOCTL METHOD_IN_DIRECT failed");
+    } else {
+        printf("Output: %s\n", input_buffer);
+    }
+
+    printf("Calling IOCTL METHOD_OUT_DIRECT:\n");
+    if (ioctl(fd, IOCTL_SIOCTL_METHOD_OUT_DIRECT, output_buffer) == -1) {
+        perror("IOCTL METHOD_OUT_DIRECT failed");
+    } else {
+        printf("Output: %s\n", output_buffer);
+    }
 }
 
 int main()
@@ -99,6 +143,8 @@ int main()
     {
         printf("[*] Device opened successfully.\n");
     }
+
+    TestIoctl(fd);
 
     // Close the device file
     close(fd);
