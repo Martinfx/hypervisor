@@ -28,12 +28,37 @@ static struct cdevsw hypervisor_cdevsw = {
     .d_name = DEVICE_NAME,
 };
 
+// Function to enable AMD-V by setting the SVM bit (12th bit) in the EFER register
+static void inline AsmEnableSvmOperation(void) {
+    __asm__ __volatile__ (
+        "mov $0xC0000080, %%ecx\n"  // EFER MSR address
+        "rdmsr\n"                   // Read the current value of EFER into EAX:EDX
+        "or $0x1000, %%eax\n"       // Set the 12th bit in EAX (SVM enable)
+        "wrmsr\n"                   // Write the modified value back to EFER
+        :
+        :
+        : "eax", "ecx", "edx"
+        );
+}
+
+// Function to enable VMX operation by setting the 14th bit of CR4
+static void inline AsmEnableVmxOperation(void) {
+    __asm__ __volatile__ (
+        "mov %%cr4, %%rax\n"         // Move CR4 into RAX
+        "or $0x2000, %%rax\n"        // Set the 14th bit in RAX (for VMX)
+        "mov %%rax, %%cr4\n"         // Move the modified value back into CR4
+        :
+        :
+        : "rax"
+        );
+}
+
 static int
 hypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
     printf("[*] hypervisor: Device opened\n");
-    // Placeholder for VMX enabling operation, FreeBSD specific implementation needed
-    // e.g., vmx_enable();
+    AsmEnableSvmOperation();
+    printf("[*] SVM Operation Enabled Successfully!\n");
     return 0;
 }
 
