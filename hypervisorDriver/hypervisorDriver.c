@@ -1,15 +1,23 @@
 #include <sys/param.h>
-#include <sys/module.h>
 #include <sys/kernel.h>
+#include <sys/module.h>
 #include <sys/systm.h>
 #include <sys/conf.h>
 #include <sys/uio.h>
 #include <sys/types.h>
-#include <sys/unistd.h>
+#include <sys/errno.h>
 #include <sys/malloc.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
-#include <sys/selinfo.h>
+#include <machine/specialreg.h>
+#include <sys/pcpu.h>
+#include <sys/priv.h>
+#include <sys/ioccom.h>  // For IOCTL command macros
+
+#define IOCTL_SIOCTL_METHOD_BUFFERED _IOW('M', 1, char*)
+#define IOCTL_SIOCTL_METHOD_NEITHER  _IOR('M', 2, char*)
+#define IOCTL_SIOCTL_METHOD_IN_DIRECT _IOWR('M', 3, char*)
+#define IOCTL_SIOCTL_METHOD_OUT_DIRECT _IOR('M', 4, char*)
 
 #define DEVICE_NAME "Hypevisor"
 static struct cdev *hypervisor_dev;
@@ -82,6 +90,52 @@ hypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
     printf("[*] hypervisor: Write not implemented\n");
     return 0;
 }
+
+static int
+hypervisor_ioctl(struct cdev *dev, u_long cmd, caddr_t data, int fflag, struct thread *td)
+{
+    char kernel_buffer[100];
+    int error = 0;
+
+    switch (cmd) {
+    case IOCTL_SIOCTL_METHOD_BUFFERED:
+        error = copyin(data, kernel_buffer, sizeof(kernel_buffer));
+        if (error) return error;
+        printf("[*] IOCTL METHOD_BUFFERED Called: %s\n", kernel_buffer);
+        snprintf(kernel_buffer, sizeof(kernel_buffer), "Response from kernel - METHOD_BUFFERED");
+        error = copyout(kernel_buffer, data, sizeof(kernel_buffer));
+        break;
+
+    case IOCTL_SIOCTL_METHOD_NEITHER:
+        error = copyin(data, kernel_buffer, sizeof(kernel_buffer));
+        if (error) return error;
+        printf("[*] IOCTL METHOD_NEITHER Called: %s\n", kernel_buffer);
+        snprintf(kernel_buffer, sizeof(kernel_buffer), "Response from kernel - METHOD_NEITHER");
+        error = copyout(kernel_buffer, data, sizeof(kernel_buffer));
+        break;
+
+    case IOCTL_SIOCTL_METHOD_IN_DIRECT:
+        error = copyin(data, kernel_buffer, sizeof(kernel_buffer));
+        if (error) return error;
+        printf("[*] IOCTL METHOD_IN_DIRECT Called: %s\n", kernel_buffer);
+        snprintf(kernel_buffer, sizeof(kernel_buffer), "Response from kernel - METHOD_IN_DIRECT");
+        error = copyout(kernel_buffer, data, sizeof(kernel_buffer));
+        break;
+
+    case IOCTL_SIOCTL_METHOD_OUT_DIRECT:
+        error = copyin(data, kernel_buffer, sizeof(kernel_buffer));
+        if (error) return error;
+        printf("[*] IOCTL METHOD_OUT_DIRECT Called: %s\n", kernel_buffer);
+        snprintf(kernel_buffer, sizeof(kernel_buffer), "Response from kernel - METHOD_OUT_DIRECT");
+        error = copyout(kernel_buffer, data, sizeof(kernel_buffer));
+        break;
+
+    default:
+        return ENOTTY;
+    }
+    return error;
+}
+
 
 static int
 hypervisor_loader(struct module *m, int event, void *arg)
