@@ -647,9 +647,9 @@ bool vm_run(void) {
         return false;
     }
 
-/*    enableSVM_EFER();
+    enableSVM_EFER();
 
-    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
+/*    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
     uint32_t max_asids;
 
