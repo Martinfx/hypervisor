@@ -649,7 +649,7 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-/*    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
+    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
     uint32_t max_asids;
 
@@ -667,7 +667,7 @@ bool vm_run(void) {
     // Nastavení ASID ve VMCB
     memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
 
-    // Provádění instrukce VMRUN
+/*    // Provádění instrukce VMRUN
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
