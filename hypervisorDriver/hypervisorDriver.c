@@ -384,24 +384,6 @@ _Static_assert(sizeof(EVENTINJ) == 8,
 #define VMEXIT_VMGEXIT              0x0403
 #define VMEXIT_INVALID              -1
 
-/*#define DEVICE_NAME "Hypervisor"
-static struct cdev *hypervisor_dev;
-
-static d_open_t     hypervisor_open;
-static d_close_t    hypervisor_close;
-static d_read_t     hypervisor_read;
-static d_write_t    hypervisor_write;
-
-static struct cdevsw hypervisor_cdevsw = {
-    .d_version = D_VERSION,
-    .d_open = hypervisor_open,
-    .d_close = hypervisor_close,
-    .d_read = hypervisor_read,
-    .d_write = hypervisor_write,
-    .d_name = DEVICE_NAME,
-};
-*/
-
 #define EFER_ADDR 0xC0000080
 #define VM_CR_ADDR 0xC0010114
 #define VM_HSAVE_PA_ADDR 0xC0010117
@@ -665,7 +647,7 @@ bool vm_run(void) {
         return false;
     }
 
-    enableSVM_EFER();
+/*    enableSVM_EFER();
 
     uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
@@ -694,8 +676,7 @@ bool vm_run(void) {
         : "r" (vmcb)
         : "rax"
         );
-    printf("Done executing vmrun\n");
-
+    printf("Done executing vmrun\n"); */
     return true;
 }
 
