@@ -583,12 +583,28 @@ vmm_host_state_init(void)
 
 int
 vmm_init(void) {
-
+    enum SVM_SUPPORT svm;
     int error = 0;
     AsmEnableSvmOperation();
     if(hasMsrSupport())
     {
         printf("[*] has msr support.\n");
+    }
+
+    svm = hasSvmSupport();
+    switch (svm) {
+    case SVM_ALLOWED:
+        printf("[+] Has SVM support: true\n");
+        break;
+    case SVM_NOT_AVAIL:
+        printf("[-] Has SVM support: false\n");
+        return 1;
+    case SVM_DISABLED_WITH_KEY:
+        printf("[-] SVM is bios disabled with key\n");
+        return 1;
+    case SVM_DISABLED_AT_BIOS_NOT_UNLOCKABLE:
+        printf("[-] SVM is bios disabled not unlockable\n");
+        return 1;
     }
 
     vmm_host_state_init();
