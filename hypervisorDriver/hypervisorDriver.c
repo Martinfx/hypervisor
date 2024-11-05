@@ -19,7 +19,7 @@
 
 
 void vmm_host_state_init(void);
-void vmm_init(void);
+int vmm_init(void);
 
 //
 // A size of two the MSR permissions map.
@@ -453,22 +453,24 @@ vmm_host_state_init(void)
     vmm_host_cr4 = rcr4();
 }
 
-void
+int
 vmm_init(void) {
+
+    int error = 0;
     AsmEnableSvmOperation();
     vmm_host_state_init();
 
-
+    return error;
 }
 
 static int
-hypervisor_loader(struct module *m, int event, void *arg)
+hypervisor_loader(module_t mod, int what, void *arg)
 {
     int error = 0;
-    switch (event) {
+    switch (what) {
     case MOD_LOAD:
         printf("[*] Loading hypervisor module.\n");
-        vmm_init();
+        error = vmm_init();
 //        hypervisor_dev = make_dev(&hypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
 //        if (!hypervisor_dev) {
 //            printf("Failed to create device node.\n");
@@ -488,5 +490,11 @@ hypervisor_loader(struct module *m, int event, void *arg)
     return error;
 }
 
-DEV_MODULE(hypervisor, hypervisor_loader, NULL);
+static moduledata_t hypervisor_kmod = {
+    "hypervisor",
+    hypervisor_loader,
+    NULL
+};
 
+DECLARE_MODULE(hypervisor_loader, hypervisor_kmod, SI_SUB_SMP + 1, SI_ORDER_ANY);
+MODULE_VERSION(hypervisor_loader, 1);
