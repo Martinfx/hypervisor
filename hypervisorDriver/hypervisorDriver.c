@@ -729,6 +729,7 @@ vmm_init(void) {
     vmm_host_state_init();
     if(!vm_run()){
         printf("[-] vm run failed!");
+        return 1;
     }
 
     return error;
