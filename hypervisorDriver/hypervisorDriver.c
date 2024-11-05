@@ -29,8 +29,10 @@ int vmm_init(void);
 void vmm_ipi_init(void);
 void vmm_ipi_cleanup(void);
 bool hasMsrSupport(void);
-
-
+void readMSR_U64(uint32_t id, uint64_t *complete);
+void readMSR(uint32_t id, uint32_t *hi, uint32_t *lo);
+void writeMSR(uint32_t id, uint32_t hi, uint32_t lo);
+bool isSvmDisabled_VM_CR(void);
 //
 // A size of two the MSR permissions map.
 //
@@ -396,6 +398,72 @@ static struct cdevsw hypervisor_cdevsw = {
     .d_name = DEVICE_NAME,
 };
 */
+
+const unsigned int EFER_ADDR = 0xC0000080;
+const unsigned int VM_CR_ADDR = 0xC0010114;
+const unsigned int VM_HSAVE_PA_ADDR = 0xC0010117;
+
+enum SVM_SUPPORT {
+    SVM_ALLOWED,
+    SVM_NOT_AVAIL,
+    SVM_DISABLED_AT_BIOS_NOT_UNLOCKABLE,
+    SVM_DISABLED_WITH_KEY
+};
+
+bool isSvmDisabled_VM_CR(void) {
+    uint32_t vm_cr;
+    uint32_t high;
+
+    // Read VM_CR MSR
+    readMSR(VM_CR_ADDR, &high, &vm_cr);
+
+    printf("[+] Is SVM Lock enabled: %s\n",
+           vm_cr & (1 << 3) ? "true" : "false");
+
+    return (bool)(vm_cr & (1 << 4));
+}
+
+static enum SVM_SUPPORT hasSvmSupport(void) {
+    uint32_t cpuid_response;
+
+    // Získání CPUID pro kontrolu podpory SVM
+    __asm __volatile (
+        "mov $0x80000001, %%eax\n\t"
+        "cpuid\n\t"
+        "mov %%ecx, %0\n\t"
+        : "=r" (cpuid_response)
+        :
+        : "rax", "rbx", "rcx", "rdx"
+        );
+
+    // Kontrola, zda je SVM rozšíření k dispozici
+    if (!(cpuid_response & 0x2)) {
+        return SVM_NOT_AVAIL;
+    }
+
+    // Kontrola, zda je SVM povoleno
+    if (!isSvmDisabled_VM_CR()) {
+        return SVM_ALLOWED;
+    }
+
+    // Získání CPUID pro kontrolu, zda je SVM zakázáno v BIOSu
+    __asm __volatile (
+        "mov $0x8000000A, %%eax\n\t"
+        "cpuid\n\t"
+        "mov %%edx, %0\n\t"
+        : "=r" (cpuid_response)
+        :
+        : "rax", "rbx", "rcx", "rdx"
+        );
+
+    // Kontrola, zda je SVM zakázáno v BIOSu
+    if ((cpuid_response & 0x2) == 0) {
+        return SVM_DISABLED_AT_BIOS_NOT_UNLOCKABLE;
+    } else {
+        return SVM_DISABLED_WITH_KEY;
+    }
+}
+
 // Function to enable AMD-V by setting the SVM bit (12th bit) in the EFER register
 static void inline AsmEnableSvmOperation(void) {
     __asm__ __volatile__ (
@@ -436,37 +504,21 @@ bool inline hasMsrSupport(void) {
     return (cpuid_response & (1 << 5)) != 0;  // Kontrola 5. bitu v EDX
 }
 
-/*
-static int
-hypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
-{
-    printf("[*] hypervisor: Device opened\n");
-    AsmEnableSvmOperation();
-    printf("[*] SVM Operation Enabled Successfully!\n");
-    return 0;
+void readMSR_U64(uint32_t id, uint64_t *complete) {
+    uint32_t hi, lo;
+
+    __asm __volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(id));
+
+    *complete = ((uint64_t)hi << 32) | lo;
 }
 
-static int
-hypervisor_close(struct cdev *dev, int fflag, int devtype, struct thread *td)
-{
-    printf("[*] hypervisor: Device closed\n");
-    return 0;
+void readMSR(uint32_t id, uint32_t *hi, uint32_t *lo) {
+    __asm __volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(id));
 }
 
-static int
-hypervisor_read(struct cdev *dev, struct uio *uio, int ioflag)
-{
-    printf("[*] hypervisor: Read not implemented\n");
-    return 0;
+void writeMSR(uint32_t id, uint32_t hi, uint32_t lo) {
+    __asm __volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(id));
 }
-
-static int
-hypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
-{
-    printf("[*] hypervisor: Write not implemented\n");
-    return 0;
-}
-*/
 
 static uint64_t vmm_host_efer, vmm_host_pat, vmm_host_cr0, vmm_host_cr4;
 
