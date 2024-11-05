@@ -2,24 +2,34 @@
 #include <sys/kernel.h>
 #include <sys/module.h>
 #include <sys/systm.h>
-#include <sys/conf.h>
-#include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/errno.h>
 #include <sys/malloc.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
-#include <machine/specialreg.h>
-#include <machine/cpufunc.h>
 #include <sys/pcpu.h>
 #include <sys/priv.h>
 #include <sys/ioccom.h>  // For IOCTL command macros
 #include <sys/types.h>
-#include <sys/systm.h>
+#include <sys/bus.h>
+#include <sys/interrupt.h>
+#include <sys/smp.h>
 
+#include <machine/specialreg.h>
+#include <machine/cpufunc.h>
+#include <machine/segments.h>
+#include <machine/intr_machdep.h>
+#include <machine/segments.h>
+#include <machine/md_var.h>
+#include <machine/smp.h>
+//#include <x86/apicvar.h>
 
 void vmm_host_state_init(void);
 int vmm_init(void);
+void vmm_ipi_init(void);
+void vmm_ipi_cleanup(void);
+bool hasMsrSupport(void);
+
 
 //
 // A size of two the MSR permissions map.
@@ -410,6 +420,22 @@ static void inline AsmEnableVmxOperation(void) {
         : "rax"
         );
 }
+
+bool inline hasMsrSupport(void) {
+    uint32_t cpuid_response;
+
+    __asm__ __volatile__ (
+        "mov $0x00000001, %%eax\n\t"   // Nastav EAX na 1 pro CPUID funkci 1
+        "cpuid\n\t"                     // Zavolej CPUID
+        "mov %%edx, %0\n\t"             // Ulož obsah registru EDX do cpuid_response
+        : "=r" (cpuid_response)         // Výstupní operandy
+        :                               // Žádné vstupní operandy
+        : "rax", "rbx", "rcx", "rdx"    // Clobber list - registry, které mohou být změněny
+        );
+
+    return (cpuid_response & (1 << 5)) != 0;  // Kontrola 5. bitu v EDX
+}
+
 /*
 static int
 hypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
@@ -444,6 +470,56 @@ hypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
 
 static uint64_t vmm_host_efer, vmm_host_pat, vmm_host_cr0, vmm_host_cr4;
 
+extern inthand_t IDTVEC(rsvd), IDTVEC(justreturn);
+
+/*
+ * The default is to use the IPI_AST to interrupt a vcpu.
+ */
+int vmm_ipinum = IPI_AST;
+
+CTASSERT(APIC_SPURIOUS_INT == 255);
+
+void
+vmm_ipi_init(void)
+{
+    int idx;
+    uintptr_t func;
+    struct gate_descriptor *ip;
+
+    /*
+     * Search backwards from the highest IDT vector available for use
+     * as our IPI vector. We install the 'justreturn' handler at that
+     * vector and use it to interrupt the vcpus.
+     *
+     * We do this because the IPI_AST is heavyweight and saves all
+     * registers in the trapframe. This is overkill for our use case
+     * which is simply to EOI the interrupt and return.
+     */
+    idx = APIC_SPURIOUS_INT;
+    while (--idx >= APIC_IPI_INTS) {
+        ip = &idt[idx];
+        func = ((long)ip->gd_hioffset << 16 | ip->gd_looffset);
+        if (func == (uintptr_t)&IDTVEC(rsvd)) {
+            vmm_ipinum = idx;
+            setidt(vmm_ipinum, IDTVEC(justreturn), SDT_SYSIGT,
+                   SEL_KPL, 0);
+            break;
+        }
+    }
+
+    if (vmm_ipinum != IPI_AST && bootverbose) {
+        printf("vmm_ipi_init: installing ipi handler to interrupt "
+               "vcpus at vector %d\n", vmm_ipinum);
+    }
+}
+
+void
+vmm_ipi_cleanup(void)
+{
+    if (vmm_ipinum != IPI_AST)
+        setidt(vmm_ipinum, IDTVEC(rsvd), SDT_SYSIGT, SEL_KPL, 0);
+}
+
 void
 vmm_host_state_init(void)
 {
@@ -458,6 +534,11 @@ vmm_init(void) {
 
     int error = 0;
     AsmEnableSvmOperation();
+    if(hasMsrSupport())
+    {
+        printf("[*] has msr support.\n");
+    }
+
     vmm_host_state_init();
 
     return error;
@@ -471,17 +552,9 @@ hypervisor_loader(module_t mod, int what, void *arg)
     case MOD_LOAD:
         printf("[*] Loading hypervisor module.\n");
         error = vmm_init();
-//        hypervisor_dev = make_dev(&hypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
-//        if (!hypervisor_dev) {
-//            printf("Failed to create device node.\n");
-//            return ENOMEM;
-//        }
-        break;
+
     case MOD_UNLOAD:
         printf("[*] Unloading hypervisor module.\n");
-//        if (hypervisor_dev) {
-//            destroy_dev(hypervisor_dev);
-//        }
         break;
     default:
         error = EOPNOTSUPP;
