@@ -33,6 +33,9 @@ void readMSR_U64(uint32_t id, uint64_t *complete);
 void readMSR(uint32_t id, uint32_t *hi, uint32_t *lo);
 void writeMSR(uint32_t id, uint32_t hi, uint32_t lo);
 bool isSvmDisabled_VM_CR(void);
+uint32_t get_max_asids(void);
+bool vm_run(void);
+
 //
 // A size of two the MSR permissions map.
 //
@@ -399,9 +402,9 @@ static struct cdevsw hypervisor_cdevsw = {
 };
 */
 
-const unsigned int EFER_ADDR = 0xC0000080;
-const unsigned int VM_CR_ADDR = 0xC0010114;
-const unsigned int VM_HSAVE_PA_ADDR = 0xC0010117;
+#define EFER_ADDR 0xC0000080
+#define VM_CR_ADDR 0xC0010114
+#define VM_HSAVE_PA_ADDR 0xC0010117
 
 enum SVM_SUPPORT {
     SVM_ALLOWED,
@@ -581,6 +584,122 @@ vmm_host_state_init(void)
     vmm_host_cr4 = rcr4();
 }
 
+void inline enableSVM_EFER(void) {
+    uint32_t efer;
+    uint32_t high;
+    uint64_t cr0;
+    uint64_t cs;
+
+    // read MSR EFER
+    readMSR(EFER_ADDR, &high, &efer);
+    printf("[*] Is EFER.SVM enabled: %s\n",
+           (efer & (1 << 12)) ? "true" : "false");
+
+    // control protected mode memory (Protected Mode)
+    __asm __volatile__("mov %%cr0, %0" : "=r" (cr0));
+    printf("[*] Is protected mode enabled: %s\n",
+           (cr0 & 1) ? "true" : "false");
+
+    // read CPL (Current Privilege Level)
+    __asm __volatile__("mov %%cs, %0" : "=r" (cs));
+    printf("[*] DPL is: %lu\n", cs & ((1 << 13) | (1 << 14)));
+
+    // enalble EFER.SVM set bit 12
+    efer |= 1 << 12;
+    writeMSR(EFER_ADDR, high, efer);
+}
+
+uint32_t get_max_asids(void) {
+    unsigned int cpuid_response;
+
+    __asm __volatile__(
+        "mov $0x8000000A, %%eax\n\t"
+        "cpuid\n\t"
+        "mov %%ebx, %0\n\t"
+        : "=r" (cpuid_response)
+        :
+        : "rax", "rbx", "rcx", "rdx"
+        );
+
+    return cpuid_response;
+}
+
+static void *vmcb = NULL;
+static void *hsave = NULL;
+
+
+bool vm_run(void) {
+   /* uint32_t hsave_high;
+    uint32_t hsave_low;
+    uint32_t max_asids;
+    */
+    vmcb = malloc(4096, M_DEVBUF, M_WAITOK | M_ZERO);
+    printf("vmcb pointer: %p\n", vmcb);
+
+    if (vmcb == NULL) {
+        printf("[-] Could not allocate memory for vmcb\n");
+        return false;
+    }
+
+    if ((uint64_t)vmcb % 4096 != 0) {
+        printf("[-] VMCB is not 4k aligned!\n");
+        return false;
+    }
+
+    // allocation memory for hsave (4 KB)
+    hsave = malloc(4096, M_DEVBUF, M_WAITOK | M_ZERO);
+    printf("[*] hsave pointer is: %p\n", hsave);
+
+    if (hsave == NULL) {
+        printf("[-] Could not allocate memory for HSAVE\n");
+        return false;
+    }
+
+    if (((uint64_t)hsave & 0xfff) > 0) {
+        printf("[-] The low 12 bits are not zero!\n");
+        return false;
+    }
+
+    if ((uint64_t)hsave % 4096 != 0) {
+        printf("[-]  HSAVE is not 4k aligned!\n");
+        return false;
+    }
+
+    enableSVM_EFER();
+
+    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
+    uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
+    uint32_t max_asids;
+
+    // Zápis adresy bufferu do HSAVE MSR
+    writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
+
+    // Čtení zpět z MSR a kontrola hodnoty
+    readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
+    printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
+
+    // Čtení maximálního počtu ASID
+    max_asids = get_max_asids();
+    max_asids -= 1;
+
+    // Nastavení ASID ve VMCB
+    memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
+
+    // Provádění instrukce VMRUN
+    printf("Start executing vmrun\n");
+    __asm __volatile__(
+        "mov %0, %%rax\n\t"
+        "vmrun\n\t"
+        :
+        : "r" (vmcb)
+        : "rax"
+        );
+    printf("Done executing vmrun\n");
+
+    return true;
+}
+
+
 int
 vmm_init(void) {
     enum SVM_SUPPORT svm;
@@ -594,7 +713,7 @@ vmm_init(void) {
     svm = hasSvmSupport();
     switch (svm) {
     case SVM_ALLOWED:
-        printf("[+] Has SVM support: true\n");
+        printf("[*] Has SVM support: true\n");
         break;
     case SVM_NOT_AVAIL:
         printf("[-] Has SVM support: false\n");
@@ -608,6 +727,9 @@ vmm_init(void) {
     }
 
     vmm_host_state_init();
+    if(!vm_run()){
+        printf("[-] vm run failed!");
+    }
 
     return error;
 }
@@ -623,6 +745,8 @@ hypervisor_loader(module_t mod, int what, void *arg)
 
     case MOD_UNLOAD:
         printf("[*] Unloading hypervisor module.\n");
+        free(vmcb, M_DEVBUF);
+        free(hsave, M_DEVBUF);
         break;
     default:
         error = EOPNOTSUPP;
