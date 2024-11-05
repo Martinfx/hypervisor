@@ -10,11 +10,16 @@
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <machine/specialreg.h>
+#include <machine/cpufunc.h>
 #include <sys/pcpu.h>
 #include <sys/priv.h>
 #include <sys/ioccom.h>  // For IOCTL command macros
 #include <sys/types.h>
 #include <sys/systm.h>
+
+
+void vmm_host_state_init(void);
+void vmm_init(void);
 
 //
 // A size of two the MSR permissions map.
@@ -364,7 +369,7 @@ _Static_assert(sizeof(EVENTINJ) == 8,
 #define VMEXIT_VMGEXIT              0x0403
 #define VMEXIT_INVALID              -1
 
-#define DEVICE_NAME "Hypervisor"
+/*#define DEVICE_NAME "Hypervisor"
 static struct cdev *hypervisor_dev;
 
 static d_open_t     hypervisor_open;
@@ -380,7 +385,7 @@ static struct cdevsw hypervisor_cdevsw = {
     .d_write = hypervisor_write,
     .d_name = DEVICE_NAME,
 };
-
+*/
 // Function to enable AMD-V by setting the SVM bit (12th bit) in the EFER register
 static void inline AsmEnableSvmOperation(void) {
     __asm__ __volatile__ (
@@ -405,7 +410,7 @@ static void inline AsmEnableVmxOperation(void) {
         : "rax"
         );
 }
-
+/*
 static int
 hypervisor_open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
@@ -435,8 +440,26 @@ hypervisor_write(struct cdev *dev, struct uio *uio, int ioflag)
     printf("[*] hypervisor: Write not implemented\n");
     return 0;
 }
+*/
+
+static uint64_t vmm_host_efer, vmm_host_pat, vmm_host_cr0, vmm_host_cr4;
+
+void
+vmm_host_state_init(void)
+{
+    vmm_host_efer = rdmsr(MSR_EFER);
+    vmm_host_pat = rdmsr(MSR_PAT);
+    vmm_host_cr0 = rcr0() | CR0_TS;
+    vmm_host_cr4 = rcr4();
+}
+
+void
+vmm_init(void) {
+    AsmEnableSvmOperation();
+    vmm_host_state_init();
 
 
+}
 
 static int
 hypervisor_loader(struct module *m, int event, void *arg)
@@ -445,17 +468,18 @@ hypervisor_loader(struct module *m, int event, void *arg)
     switch (event) {
     case MOD_LOAD:
         printf("[*] Loading hypervisor module.\n");
-        hypervisor_dev = make_dev(&hypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
-        if (!hypervisor_dev) {
-            printf("Failed to create device node.\n");
-            return ENOMEM;
-        }
+        vmm_init();
+//        hypervisor_dev = make_dev(&hypervisor_cdevsw, 0, UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
+//        if (!hypervisor_dev) {
+//            printf("Failed to create device node.\n");
+//            return ENOMEM;
+//        }
         break;
     case MOD_UNLOAD:
         printf("[*] Unloading hypervisor module.\n");
-        if (hypervisor_dev) {
-            destroy_dev(hypervisor_dev);
-        }
+//        if (hypervisor_dev) {
+//            destroy_dev(hypervisor_dev);
+//        }
         break;
     default:
         error = EOPNOTSUPP;
