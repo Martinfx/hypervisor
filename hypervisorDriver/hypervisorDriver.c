@@ -648,8 +648,7 @@ bool vm_run(void) {
     uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
 
-    if (writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low) != 0) {
-        printf("Failed to write to MSR\n");
+    writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
 
     readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
     printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
@@ -662,7 +661,7 @@ bool vm_run(void) {
     memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
 
     // Provádění instrukce VMRUN
- /*   printf("Start executing vmrun\n");
+   printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
         "vmrun\n\t"
