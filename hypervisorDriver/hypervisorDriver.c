@@ -24,6 +24,7 @@
 #include <machine/smp.h>
 //#include <x86/apicvar.h>
 
+
 void vmm_host_state_init(void);
 int vmm_init(void);
 void vmm_ipi_init(void);
@@ -592,18 +593,13 @@ void inline enableSVM_EFER(void) {
 }
 
 uint32_t get_max_asids(void) {
-    unsigned int cpuid_response;
+    uint32_t cpuid_response[4]; // Uloží výstupy EAX, EBX, ECX, EDX
 
-    __asm __volatile__(
-        "mov $0x8000000A, %%eax\n\t"
-        "cpuid\n\t"
-        "mov %%ebx, %0\n\t"
-        : "=r" (cpuid_response)
-        :
-        : "rax", "rbx", "rcx", "rdx"
-        );
+    // Volání CPUID pro 0x8000000A
+    cpuid_count(0x8000000A, 0, cpuid_response);
 
-    return cpuid_response;
+    // Výstup EBX obsahuje max ASIDy
+    return cpuid_response[1]; // cpuid_response[1] odpovídá registru EBX
 }
 
 static void *vmcb = NULL;
