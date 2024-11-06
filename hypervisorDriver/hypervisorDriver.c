@@ -648,10 +648,9 @@ bool vm_run(void) {
     uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
 
-    // Zápis adresy bufferu do HSAVE MSR
-    writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
+    if (writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low) != 0) {
+        printf("Failed to write to MSR\n");
 
-    // Čtení zpět z MSR a kontrola hodnoty
     readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
     printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
 
