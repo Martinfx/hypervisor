@@ -599,7 +599,7 @@ uint32_t get_max_asids(void) {
     cpuid_count(0x8000000A, 0, cpuid_response);
 
     // Výstup EBX obsahuje max ASIDy
-    return cpuid_response[1]; // cpuid_response[1] odpovídá registru EBX
+    return cpuid_response[1];
 }
 
 static void *vmcb = NULL;
@@ -655,7 +655,7 @@ bool vm_run(void) {
     readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
     printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
 
-    // Čtení maximálního počtu ASID
+  /*  // Čtení maximálního počtu ASID
     uint32_t max_asids = get_max_asids();
     max_asids -= 1;
 
