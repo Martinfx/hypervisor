@@ -645,15 +645,15 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-    uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
+  /*  uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
 
     writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
 
     readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
     printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
-
-  /*  // Čtení maximálního počtu ASID
+    */
+    // Čtení maximálního počtu ASID
     uint32_t max_asids = get_max_asids();
     max_asids -= 1;
 
@@ -669,7 +669,7 @@ bool vm_run(void) {
         : "r" (vmcb)
         : "rax"
         );
-    printf("Done executing vmrun\n"); */
+    printf("Done executing vmrun\n");
     return true;
 }
 
