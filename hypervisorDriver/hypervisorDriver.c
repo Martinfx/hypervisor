@@ -645,23 +645,14 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-  /*  uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
-    uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
-
-    writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
-
-    readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
-    printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
-    */
-    // Čtení maximálního počtu ASID
-    uint32_t max_asids = get_max_asids();
-    max_asids -= 1;
-
-    // Nastavení ASID ve VMCB
-    memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
+    // Povolení SVM v registru EFER
+    uint32_t high, low;
+    readMSR(EFER_ADDR, &high, &low);
+    low |= (1 << 12);  // Nastavení bitu SVM
+    writeMSR(EFER_ADDR, high, low);
 
     // Provádění instrukce VMRUN
-   printf("Start executing vmrun\n");
+    printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
         "vmrun\n\t"
@@ -670,7 +661,6 @@ bool vm_run(void) {
         : "rax"
         );
     printf("Done executing vmrun\n");
-    return true;
 }
 
 
