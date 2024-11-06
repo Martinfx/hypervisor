@@ -664,10 +664,10 @@ bool vm_run(void) {
     max_asids -= 1;
 
     // Nastavení ASID ve VMCB
- /*   memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
+    memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
 
     // Provádění instrukce VMRUN
-    printf("Start executing vmrun\n");
+ /*   printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
         "vmrun\n\t"
@@ -675,8 +675,8 @@ bool vm_run(void) {
         : "r" (vmcb)
         : "rax"
         );
-    printf("Done executing vmrun\n");
-    return true;*/
+    printf("Done executing vmrun\n"); */
+    return true;
 }
 
 
