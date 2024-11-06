@@ -651,7 +651,6 @@ bool vm_run(void) {
 
     uint32_t hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     uint32_t hsave_low = (uint32_t)((uint64_t)hsave & 0xFFFFFFFF);
-    uint32_t max_asids;
 
     // Zápis adresy bufferu do HSAVE MSR
     writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
@@ -661,13 +660,13 @@ bool vm_run(void) {
     printf("VM_HSAVE_PA_ADDR: %p\n", hsave);
 
     // Čtení maximálního počtu ASID
-    max_asids = get_max_asids();
+    uint32_t max_asids = get_max_asids();
     max_asids -= 1;
 
     // Nastavení ASID ve VMCB
-    memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
+ /*   memcpy((char*)vmcb + 0x58, &max_asids, sizeof(uint32_t));
 
-/*    // Provádění instrukce VMRUN
+    // Provádění instrukce VMRUN
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
@@ -676,8 +675,8 @@ bool vm_run(void) {
         : "r" (vmcb)
         : "rax"
         );
-    printf("Done executing vmrun\n"); */
-    return true;
+    printf("Done executing vmrun\n");
+    return true;*/
 }
 
 
