@@ -661,6 +661,8 @@ bool vm_run(void) {
         : "rax"
         );
     printf("Done executing vmrun\n");
+
+    return true;
 }
 
 
