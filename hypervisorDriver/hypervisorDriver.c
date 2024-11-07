@@ -691,7 +691,7 @@ bool vm_run(void) {
     max_asids -= 1;
     // Set asid in VMCB
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
-/*
+
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
