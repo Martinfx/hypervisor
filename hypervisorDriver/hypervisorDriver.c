@@ -713,7 +713,6 @@ bool vm_run(void) {
    }
 
    printf("[*] Allocation VMCB success %p\n", vmcb);
-   return 0;
 
     if ((uint64_t)vmcb % 4096 != 0) {
         printf("[-] VMCB is not 4k aligned!\n");
