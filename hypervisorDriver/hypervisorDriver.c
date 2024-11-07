@@ -645,14 +645,17 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-    // Povolení SVM v registru EFER
-    //uint32_t high,
-    uint32_t low;
-    low = rdmsr32(EFER_ADDR);
-    low |= (1 << 12);  // Nastavení bitu SVM
-    //writeMSR(EFER_ADDR, high, low);
-    wrmsr(EFER_ADDR, low);
-    // Provádění instrukce VMRUN
+    uint32_t hsave_high;
+    uint32_t hsave_low;
+    hsave_high = (uint32_t)((uint64_t)hsave >> 32);
+    hsave_low = (uint32_t)((uint64_t)hsave & LOW_64);
+
+    // Write buffer address to HSAVE msr
+    writeMSR(VM_HSAVE_PA_ADDR, hsave_high, hsave_low);
+    readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
+
+    printf("[*] VM_HSAVE_PA_ADDR: 0x%p\n", hsave);
+
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
