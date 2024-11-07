@@ -578,7 +578,7 @@ void inline enableSVM_EFER(void) {
     uint64_t cs;
 
     // read MSR EFER
-    readMSR(EFER_ADDR, &high, &efer);
+    readMSR(MSR_EFER, &high, &efer);
     printf("[*] Is EFER.SVM enabled: %s\n",
            (efer & (1 << 12)) ? "true" : "false");
 
@@ -593,7 +593,7 @@ void inline enableSVM_EFER(void) {
 
     // enalble EFER.SVM set bit 12
     efer |= 1 << 12;
-    writeMSR(EFER_ADDR, high, efer);
+    writeMSR(MSR_EFER, high, efer);
 }
 
 uint32_t get_max_asids(void) {
@@ -671,7 +671,7 @@ bool vm_run(void) {
      uint32_t svm_enable = (1 << 12);
 
     // write with control to MSR
-    if (!wrmsr_with_check(EFER_ADDR, svm_enable)) {
+    if (!wrmsr_with_check(MSR_EFER, svm_enable)) {
         printf("[-] Error for enable SVM\n");
         return -1;
     }
