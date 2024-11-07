@@ -646,11 +646,12 @@ bool vm_run(void) {
     enableSVM_EFER();
 
     // Povolení SVM v registru EFER
-    uint32_t high, low;
-    readMSR(EFER_ADDR, &high, &low);
+    //uint32_t high,
+    uint32_t low;
+    low = rdmsr32(EFER_ADDR);
     low |= (1 << 12);  // Nastavení bitu SVM
-    writeMSR(EFER_ADDR, high, low);
-
+    //writeMSR(EFER_ADDR, high, low);
+    wrmsr(EFER_ADDR, low);
     // Provádění instrukce VMRUN
     printf("Start executing vmrun\n");
     __asm __volatile__(
