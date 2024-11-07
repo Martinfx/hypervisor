@@ -626,6 +626,10 @@ void io_out(uint16_t port, uint32_t data);
 void vmexit_handler(struct VMCB *vmcb);
 void free_vmcb(void);
 
+uint32_t io_in(uint16_t port) {
+    return 0;
+}
+
 void io_out(uint16_t port, uint32_t data) {
 
 }
