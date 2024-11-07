@@ -578,7 +578,7 @@ void inline enableSVM_EFER(void) {
     uint64_t cs;
 
     // read MSR EFER
-    readMSR(MSR_EFER, &high, &efer);
+    readMSR(EFER_ADDR, &high, &efer);
     printf("[*] Is EFER.SVM enabled: %s\n",
            (efer & (1 << 12)) ? "true" : "false");
 
@@ -593,7 +593,7 @@ void inline enableSVM_EFER(void) {
 
     // enalble EFER.SVM set bit 12
     efer |= 1 << 12;
-    writeMSR(MSR_EFER, high, efer);
+    writeMSR(EFER_ADDR, high, efer);
 }
 
 uint32_t get_max_asids(void) {
@@ -612,15 +612,14 @@ int wrmsr_with_check(uint32_t addr, uint32_t value) {
     // write to MSR
     wrmsr(addr, value);
 
-    // read from MSR
+    // read MSR
     uint32_t read_value = rdmsr32(addr);
 
-    // Kontrola, zda hodnota MSR odpovídá požadované hodnotě
     if (read_value != value) {
         printf("[-] MSR entry failed! Read value: 0x%x, Expected value: 0x%x\n", read_value, value);
-           return 0;
-    }
+        return 0;
 
+    }
     printf("[*] write to  MSR 0x%x success.\n", addr);
     return 1;
 }
@@ -671,7 +670,7 @@ bool vm_run(void) {
      uint32_t svm_enable = (1 << 12);
 
     // write with control to MSR
-    if (!wrmsr_with_check(MSR_EFER, svm_enable)) {
+    if (!wrmsr_with_check(EFER_ADDR, svm_enable)) {
         printf("[-] Error for enable SVM\n");
         return -1;
     }
@@ -692,7 +691,7 @@ bool vm_run(void) {
     max_asids -= 1;
     // Set asid in VMCB
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
-
+/*
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
