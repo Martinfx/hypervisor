@@ -14,7 +14,7 @@
 #include <sys/bus.h>
 #include <sys/interrupt.h>
 #include <sys/smp.h>
-
+#include <vm/pmap.h>
 #include <machine/specialreg.h>
 #include <machine/cpufunc.h>
 #include <machine/segments.h>
@@ -57,6 +57,10 @@ bool vm_run(void);
 #define SVM_INTERCEPT_MISC1_MSR_PROT    (1UL << 28)
 #define SVM_INTERCEPT_MISC2_VMRUN       (1UL << 0)
 #define SVM_NP_ENABLE_NP_ENABLE         (1UL << 0)
+
+#define VMCB_SIZE 4096
+#define EFER_SVME (1 << 12)
+#define GUEST_STACK_ADDRESS 0x0FFF0
 
 struct vmcb_control_area
 {
@@ -838,7 +842,7 @@ bool vm_run(void) {
         return -1;
     }*/
 
-    uint32_t hsave_high;
+   /* uint32_t hsave_high;
     uint32_t hsave_low;
     uint32_t max_asids;
     hsave_high = (uint32_t)((uint64_t)hsave >> 32);
@@ -854,16 +858,14 @@ bool vm_run(void) {
     max_asids -= 1;
     // Set asid in VMCB
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
-
+*/
     printf("Start executing vmrun\n");
-    __asm __volatile__(
-        "mov %0, %%rax\n\t"
-        "vmrun\n\t"
-        :
-        : "r" (vmcb)
-        : "rax"
-        );
-    printf("Done executing vmrun\n");
+    uintptr_t vmcb_pa = vtophys(vmcb); // Získání fyzické adresy VMCB
+    __asm__ __volatile__("mov %0, %%rax" : : "r" (vmcb_pa) : "rax");
+
+    // Volání instrukce VMRUN
+    __asm__ __volatile__("vmrun" : : : "memory");
+
 
     vmexit_handler(vmcb);
 
