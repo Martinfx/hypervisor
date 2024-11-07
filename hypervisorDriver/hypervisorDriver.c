@@ -385,6 +385,10 @@ _Static_assert(sizeof(EVENTINJ) == 8,
 #define VMEXIT_VMGEXIT              0x0403
 #define VMEXIT_INVALID              -1
 
+// MASKS
+const uint64_t LOW_64 = 0x00000000ffffffff;
+const uint64_t HIGH_64 = ~LOW_64;
+
 #define EFER_ADDR 0xC0000080
 #define VM_CR_ADDR 0xC0010114
 #define VM_HSAVE_PA_ADDR 0xC0010117
