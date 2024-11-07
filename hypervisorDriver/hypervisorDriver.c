@@ -625,6 +625,8 @@ uint32_t io_in(uint16_t port);
 void io_out(uint16_t port, uint32_t data);
 void vmexit_handler(struct VMCB *vmcb);
 void free_vmcb(void);
+void initialize_vmcb_control_area(struct VMCB *vmcb);
+void initialize_vmcb_state_save_area(struct VMCB *vmcb);
 
 uint32_t io_in(uint16_t port) {
     return 0;
@@ -677,15 +679,96 @@ void vmexit_handler(struct VMCB *vmcb) {
             io_out(port, data);  // Funkce, která zapisuje na I/O port
         }
 
-        // Nastavení NRip pro pokračování
-        vmcb->ControlArea.NRip += 2; // Předpokládáme 2-bajtovou instrukci
+
+        vmcb->ControlArea.NRip += 2;
         break;
     }
 
     default:
-        printf("[-] Neznámý VMEXIT kód: %lu\n", exit_code);
+        printf("[-] unknow VMEXIT code: %lu\n", exit_code);
         break;
     }
+}
+
+
+// Function to initialize the VMCB control area
+void initialize_vmcb_control_area(struct VMCB *vmcb) {
+    // Set intercepts for CR, DR, I/O, and other instructions you want to capture
+    vmcb->ControlArea.InterceptCrRead = 0;      // For example, no intercept for CR read
+    vmcb->ControlArea.InterceptCrWrite = 0;     // No intercept for CR write
+    vmcb->ControlArea.InterceptDrRead = 0;      // No intercept for DR read
+    vmcb->ControlArea.InterceptDrWrite = 0;     // No intercept for DR write
+    vmcb->ControlArea.InterceptException = 0;   // No intercept for exceptions
+
+    // Set intercepts for specific instructions, e.g., CPUID
+    vmcb->ControlArea.InterceptMisc1 = SVM_INTERCEPT_MISC1_CPUID; // Capture CPUID instruction
+
+    // Enable Nested Paging
+    vmcb->ControlArea.NpEnable = SVM_NP_ENABLE_NP_ENABLE;
+
+    // Set the guest ASID (Address Space Identifier)
+    vmcb->ControlArea.GuestAsid = 1; // ASID must be non-zero
+
+    // Set the TSC offset if you need time synchronization
+    vmcb->ControlArea.TscOffset = 0;
+
+    // Default address for NRip (if available)
+    vmcb->ControlArea.NRip = 0;
+}
+
+// Function to initialize the VMCB state save area
+void initialize_vmcb_state_save_area( struct VMCB *vmcb) {
+    // Initialize segment registers (CS, DS, SS, etc.)
+    vmcb->StateSaveArea.CsSelector = 0x10;   // Default value for CS (e.g., 0x10)
+    vmcb->StateSaveArea.CsAttrib = 0x209B;   // CS attributes (access rights)
+    vmcb->StateSaveArea.CsLimit = 0xFFFFF;   // Segment limit
+    vmcb->StateSaveArea.CsBase = 0x0;        // Segment base address
+
+    vmcb->StateSaveArea.SsSelector = 0x18;
+    vmcb->StateSaveArea.SsAttrib = 0x2093;
+    vmcb->StateSaveArea.SsLimit = 0xFFFFF;
+    vmcb->StateSaveArea.SsBase = 0x0;
+
+    vmcb->StateSaveArea.DsSelector = 0x18;
+    vmcb->StateSaveArea.DsAttrib = 0x2093;
+    vmcb->StateSaveArea.DsLimit = 0xFFFFF;
+    vmcb->StateSaveArea.DsBase = 0x0;
+
+    vmcb->StateSaveArea.EsSelector = 0x18;
+    vmcb->StateSaveArea.EsAttrib = 0x2093;
+    vmcb->StateSaveArea.EsLimit = 0xFFFFF;
+    vmcb->StateSaveArea.EsBase = 0x0;
+
+    vmcb->StateSaveArea.FsSelector = 0x18;
+    vmcb->StateSaveArea.FsAttrib = 0x2093;
+    vmcb->StateSaveArea.FsLimit = 0xFFFFF;
+    vmcb->StateSaveArea.FsBase = 0x0;
+
+    vmcb->StateSaveArea.GsSelector = 0x18;
+    vmcb->StateSaveArea.GsAttrib = 0x2093;
+    vmcb->StateSaveArea.GsLimit = 0xFFFFF;
+    vmcb->StateSaveArea.GsBase = 0x0;
+
+    // Initialize GDTR and IDTR
+    vmcb->StateSaveArea.GdtrLimit = 0xFFFF;
+    vmcb->StateSaveArea.GdtrBase = 0;
+    vmcb->StateSaveArea.IdtrLimit = 0xFFFF;
+    vmcb->StateSaveArea.IdtrBase = 0;
+
+    // Initialize control registers
+    vmcb->StateSaveArea.Cr0 = 0x60000010; // Required values for CR0
+    vmcb->StateSaveArea.Cr3 = 0x0;        // Set to the correct page table for the guest
+    vmcb->StateSaveArea.Cr4 = 0x00000020; // Required values for CR4 (e.g., enable PAE)
+
+    // Enable extended mode and SVM in EFER
+    vmcb->StateSaveArea.Efer = (1 << 12) | 1; // SVM_ENABLE | LME
+
+    // Initialize RIP and RSP
+    vmcb->StateSaveArea.Rip = 0x0000;    // Set to the start address of the guest code
+    vmcb->StateSaveArea.Rsp = 0x0FFF0;   // Set to the start address of the guest stack
+
+    // Set the default value for RFLAGS
+    vmcb->StateSaveArea.Rflags = 0x2;    // Set bit 1 (default value for RFLAGS)
 }
 
 struct VMCB *vmcb;
@@ -712,7 +795,10 @@ bool vm_run(void) {
        return EINVAL;
    }
 
-   printf("[*] Allocation VMCB success %p\n", vmcb);
+    printf("[*] Allocation VMCB success %p\n", vmcb);
+
+   initialize_vmcb_control_area(vmcb);
+   initialize_vmcb_state_save_area(vmcb);
 
     if ((uint64_t)vmcb % 4096 != 0) {
         printf("[-] VMCB is not 4k aligned!\n");
@@ -741,8 +827,6 @@ bool vm_run(void) {
     enableSVM_EFER();
 
 
-    vmexit_handler(vmcb);
-
 
 
     // uint32_t svm_enable = (1 << 12);
@@ -769,7 +853,7 @@ bool vm_run(void) {
     max_asids -= 1;
     // Set asid in VMCB
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
-
+*/
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
@@ -779,7 +863,9 @@ bool vm_run(void) {
         : "rax"
         );
     printf("Done executing vmrun\n");
-*/
+
+    vmexit_handler(vmcb);
+
     return true;
 }
 
