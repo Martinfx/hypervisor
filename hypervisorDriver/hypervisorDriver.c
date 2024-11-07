@@ -606,6 +606,25 @@ uint32_t get_max_asids(void) {
     return cpuid_response[1];
 }
 
+int wrmsr_with_check(uint32_t addr, uint32_t value);
+
+int wrmsr_with_check(uint32_t addr, uint32_t value) {
+    // write to MSR
+    wrmsr(addr, value);
+
+    // read from MSR
+    uint32_t read_value = rdmsr32(addr);
+
+    // Kontrola, zda hodnota MSR odpovídá požadované hodnotě
+    if (read_value != value) {
+        printf("[-] MSR entry failed! Read value: 0x%x, Expected value: 0x%x\n", read_value, value);
+           return 0;
+    }
+
+    printf("[*] write to  MSR 0x%x success.\n", addr);
+    return 1;
+}
+
 static void *vmcb = NULL;
 static void *hsave = NULL;
 
@@ -649,7 +668,15 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-    uint32_t hsave_high;
+     uint32_t svm_enable = (1 << 12);
+
+    // write with control to MSR
+    if (!wrmsr_with_check(EFER_ADDR, svm_enable)) {
+        printf("[-] Error for enable SVM\n");
+        return -1;
+    }
+
+  /*  uint32_t hsave_high;
     uint32_t hsave_low;
     uint32_t max_asids;
     hsave_high = (uint32_t)((uint64_t)hsave >> 32);
@@ -665,7 +692,7 @@ bool vm_run(void) {
     max_asids -= 1;
     // Set asid in VMCB
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
-/*
+
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
