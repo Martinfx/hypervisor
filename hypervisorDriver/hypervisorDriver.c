@@ -758,10 +758,11 @@ void initialize_vmcb_state_save_area( struct VMCB *vmcb) {
     // Initialize control registers
     vmcb->StateSaveArea.Cr0 = 0x60000010; // Required values for CR0
     vmcb->StateSaveArea.Cr3 = 0x0;        // Set to the correct page table for the guest
-    vmcb->StateSaveArea.Cr4 = 0x00000020; // Required values for CR4 (e.g., enable PAE)
+    vmcb->StateSaveArea.Cr4 = 0x00000020; // Required values for CR4 (e.g., enable PAE =1)
 
     // Enable extended mode and SVM in EFER
-    vmcb->StateSaveArea.Efer = (1 << 12) | 1; // SVM_ENABLE | LME
+    //vmcb->StateSaveArea.Efer = (1 << 12) | 1; // SVM_ENABLE | LME
+    vmcb->StateSaveArea.Efer = (1 << 12) | (1 << 8);
 
     // Initialize RIP and RSP
     vmcb->StateSaveArea.Rip = 0x0000;    // Set to the start address of the guest code
