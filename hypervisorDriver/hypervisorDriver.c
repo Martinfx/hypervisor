@@ -651,6 +651,7 @@ bool vm_run(void) {
 
     uint32_t hsave_high;
     uint32_t hsave_low;
+    uint32_t max_asids;
     hsave_high = (uint32_t)((uint64_t)hsave >> 32);
     hsave_low = (uint32_t)((uint64_t)hsave & LOW_64);
 
@@ -659,7 +660,12 @@ bool vm_run(void) {
     readMSR_U64(VM_HSAVE_PA_ADDR, (uint64_t *)hsave);
 
     printf("[*] VM_HSAVE_PA_ADDR: 0x%p\n", hsave);
-
+    // Read max asids
+    max_asids = get_max_asids();
+    max_asids -= 1;
+    // Set asid in VMCB
+    memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
+/*
     printf("Start executing vmrun\n");
     __asm __volatile__(
         "mov %0, %%rax\n\t"
@@ -669,7 +675,7 @@ bool vm_run(void) {
         : "rax"
         );
     printf("Done executing vmrun\n");
-
+*/
     return true;
 }
 
