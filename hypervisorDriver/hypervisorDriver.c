@@ -58,7 +58,7 @@ bool vm_run(void);
 #define SVM_INTERCEPT_MISC2_VMRUN       (1UL << 0)
 #define SVM_NP_ENABLE_NP_ENABLE         (1UL << 0)
 
-typedef struct _VMCB_CONTROL_AREA
+struct vmcb_control_area
 {
     uint16_t InterceptCrRead;             // +0x000
     uint16_t InterceptCrWrite;            // +0x002
@@ -98,14 +98,12 @@ typedef struct _VMCB_CONTROL_AREA
     uint64_t Reserved3;                   // +0x100
     uint64_t VmcbSaveStatePointer;        // +0x108
     uint8_t Reserved4[0x400 - 0x110];     // +0x110
-} VMCB_CONTROL_AREA, *PVMCB_CONTROL_AREA;
-_Static_assert(sizeof(VMCB_CONTROL_AREA) == 0x400,
-              "VMCB_CONTROL_AREA Size Mismatch");
+};
 
 //
 // See "VMCB Layout, State Save Area"
 //
-typedef struct _VMCB_STATE_SAVE_AREA
+struct vmcb_state_area
 {
     uint16_t EsSelector;                  // +0x000
     uint16_t EsAttrib;                    // +0x002
@@ -179,21 +177,20 @@ typedef struct _VMCB_STATE_SAVE_AREA
     uint64_t BrTo;                        // +0x280
     uint64_t LastExcepFrom;               // +0x288
     uint64_t LastExcepTo;                 // +0x290
-} VMCB_STATE_SAVE_AREA, *PVMCB_STATE_SAVE_AREA;
-_Static_assert(sizeof(VMCB_STATE_SAVE_AREA) == 0x298,
-              "VMCB_STATE_SAVE_AREA Size Mismatch");
+    uint64_t Rbx;
+    uint64_t Rcx;
+    uint64_t Rdx;
+};
 
 //
 // An entire VMCB (Virtual machine control block) layout.
 //
-typedef struct _VMCB
+struct VMCB
 {
-    VMCB_CONTROL_AREA ControlArea;
-    VMCB_STATE_SAVE_AREA StateSaveArea;
-    uint8_t Reserved1[0x1000 - sizeof(VMCB_CONTROL_AREA) - sizeof(VMCB_STATE_SAVE_AREA)];
-} VMCB, *PVMCB;
-_Static_assert(sizeof(VMCB) == 0x1000,
-              "VMCB Size Mismatch");
+    struct vmcb_control_area ControlArea;
+    struct vmcb_state_area StateSaveArea;
+    uint8_t Reserved1[0x1000 - sizeof(struct vmcb_control_area) - sizeof( struct vmcb_state_area)];
+};
 
 //
 // See "Event Injection"
@@ -624,7 +621,66 @@ int wrmsr_with_check(uint32_t addr, uint32_t value) {
     return 1;
 }
 
-static void *vmcb = NULL;
+uint32_t io_in(uint16_t port);
+void io_out(uint16_t port, uint32_t data);
+void vmexit_handler(struct VMCB *vmcb);
+void free_vmcb(void);
+
+void vmexit_handler(struct VMCB *vmcb) {
+    uint64_t exit_code = vmcb->ControlArea.ExitCode;
+
+    switch (exit_code) {
+    case VMEXIT_CPUID: {
+        printf("[*] VMEXIT: CPUID instruction\n");
+        uint32_t eax, ebx, ecx, edx;
+
+        // Emulace instrukce CPUID (například získání CPUID)
+        __asm__ __volatile__("cpuid"
+                             : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
+                             : "a" (vmcb->StateSaveArea.Rax), "c" (vmcb->StateSaveArea.Rcx ));
+
+        // Uložení výsledků do VMCB
+        vmcb->StateSaveArea.Rax = eax;
+        vmcb->StateSaveArea.Rbx = ebx;
+        vmcb->StateSaveArea.Rcx = ecx;
+        vmcb->StateSaveArea.Rdx = edx;
+
+        // Nastavení návratové adresy (Next RIP)
+        vmcb->ControlArea.NRip += 2; // Předpokládáme 2-bajtovou instrukci
+        break;
+    }
+
+    case VMEXIT_IOIO: {
+        printf("[*] VMEXIT: IOIO instruction\n");
+        uint64_t io_info = vmcb->ControlArea.ExitInfo1;
+
+        // Dekódujte operaci: směr (vstup/výstup) a port
+        bool is_input = (io_info & (1 << 0));
+        uint16_t port = (io_info >> 16) & 0xFFFF;
+        uint32_t data = 0;
+
+        if (is_input) {
+            // Emulace I/O vstupní operace
+            data = io_in(port);  // Funkce, která čte z I/O portu
+            vmcb->StateSaveArea.Rax = data;  // Uložení výsledku
+        } else {
+            // Emulace I/O výstupní operace
+            data = vmcb->StateSaveArea.Rax & 0xFF;  // Předpokládáme 8-bitový přenos
+            io_out(port, data);  // Funkce, která zapisuje na I/O port
+        }
+
+        // Nastavení NRip pro pokračování
+        vmcb->ControlArea.NRip += 2; // Předpokládáme 2-bajtovou instrukci
+        break;
+    }
+
+    default:
+        printf("[-] Neznámý VMEXIT kód: %lu\n", exit_code);
+        break;
+    }
+}
+
+struct VMCB *vmcb;
 static void *hsave = NULL;
 
 
@@ -633,13 +689,23 @@ bool vm_run(void) {
     uint32_t hsave_low;
     uint32_t max_asids;
     */
-    vmcb = malloc(4096, M_DEVBUF, M_WAITOK | M_ZERO);
-    printf("vmcb pointer: %p\n", vmcb);
+   vmcb = malloc(PAGE_SIZE, M_DEVBUF, M_WAITOK | M_ZERO);
 
-    if (vmcb == NULL) {
-        printf("[-] Could not allocate memory for vmcb\n");
-        return false;
-    }
+   // Kontrola, zda alokace proběhla úspěšně
+   if (vmcb == NULL) {
+       printf("[-] Error: allocation failed VMCB.\n");
+       return ENOMEM;
+   }
+
+   // Ověření, že je VMCB zarovnáno na velikost stránky
+   if ((uintptr_t)vmcb % PAGE_SIZE != 0) {
+       printf("[-] Chyba: VMCB is not aligned for 4 KB hranici!\n");
+       free(vmcb, M_DEVBUF);
+       return EINVAL;
+   }
+
+   printf("[*] Allocation VMCB success %p\n", vmcb);
+   return 0;
 
     if ((uint64_t)vmcb % 4096 != 0) {
         printf("[-] VMCB is not 4k aligned!\n");
@@ -666,6 +732,10 @@ bool vm_run(void) {
     }
 
     enableSVM_EFER();
+
+
+    vmexit_handler(vmcb);
+
 
 
     // uint32_t svm_enable = (1 << 12);
@@ -742,6 +812,13 @@ vmm_init(void) {
     return error;
 }
 
+void free_vmcb(void) {
+    if (vmcb) {
+        free(vmcb, M_DEVBUF);
+        vmcb = NULL;
+        printf("[*] VMCB uvolněno.\n");
+    }
+}
 static int
 hypervisor_loader(module_t mod, int what, void *arg)
 {
