@@ -667,13 +667,14 @@ bool vm_run(void) {
 
     enableSVM_EFER();
 
-     uint32_t svm_enable = (1 << 12);
+
+    // uint32_t svm_enable = (1 << 12);
 
     // write with control to MSR
-    if (!wrmsr_with_check(EFER_ADDR, svm_enable)) {
+   /* if (!wrmsr_with_check(EFER_ADDR, svm_enable)) {
         printf("[-] Error for enable SVM\n");
         return -1;
-    }
+    }*/
 
   /*  uint32_t hsave_high;
     uint32_t hsave_low;
