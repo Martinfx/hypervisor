@@ -626,6 +626,10 @@ void io_out(uint16_t port, uint32_t data);
 void vmexit_handler(struct VMCB *vmcb);
 void free_vmcb(void);
 
+void io_out(uint16_t port, uint32_t data) {
+
+}
+
 void vmexit_handler(struct VMCB *vmcb) {
     uint64_t exit_code = vmcb->ControlArea.ExitCode;
 
