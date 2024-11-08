@@ -713,6 +713,9 @@ void initialize_vmcb_control_area(struct VMCB *vmcb) {
     // Set intercepts for specific instructions, e.g., CPUID
     vmcb->ControlArea.InterceptMisc1 = SVM_INTERCEPT_MISC1_CPUID; // Capture CPUID instruction
 
+    // disable catch exception
+    vmcb->ControlArea.InterceptException = 0;
+
     // Enable Nested Paging
     vmcb->ControlArea.NpEnable = SVM_NP_ENABLE_NP_ENABLE;
 
