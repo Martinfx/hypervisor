@@ -632,6 +632,7 @@ void vmexit_handler(struct VMCB *vmcb);
 void free_vmcb(void);
 void initialize_vmcb_control_area(struct VMCB *vmcb);
 void initialize_vmcb_state_save_area(struct VMCB *vmcb);
+void set_vm_hsave_area(uint64_t hsave_pa);
 
 uint32_t io_in(uint16_t port) {
     return 0;
@@ -639,6 +640,10 @@ uint32_t io_in(uint16_t port) {
 
 void io_out(uint16_t port, uint32_t data) {
 
+}
+
+void set_vm_hsave_area(uint64_t hsave_pa) {
+    wrmsr(MSR_VM_HSAVE_PA, hsave_pa);
 }
 
 void vmexit_handler(struct VMCB *vmcb) {
@@ -830,9 +835,14 @@ bool vm_run(void) {
         return false;
     }
 
+    set_vm_hsave_area(pmap_kextract((vm_offset_t)vmcb));
     enableSVM_EFER();
 
-
+    uintptr_t vmcb_pa = pmap_kextract((vm_offset_t)vmcb); // Physical address of VMCB
+    if (vmcb_pa % 4096 != 0) {
+        printf("Error: VMCB address is not 4KB aligned!\n");
+        return EINVAL;
+    }
 
 
     // uint32_t svm_enable = (1 << 12);
@@ -861,10 +871,7 @@ bool vm_run(void) {
     memcpy((char*)vmcb+0x58, &max_asids, sizeof(uint32_t));
 */
     printf("Start executing vmrun\n");
-    uintptr_t vmcb_pa = vtophys(vmcb); // Získání fyzické adresy VMCB
     __asm__ __volatile__("mov %0, %%rax" : : "r" (vmcb_pa) : "rax");
-
-    // Volání instrukce VMRUN
     __asm__ __volatile__("vmrun" : : : "memory");
 
 
