@@ -14,7 +14,7 @@
 #include <sys/bus.h>
 #include <sys/interrupt.h>
 #include <sys/smp.h>
-#include <vm/pmap.h>
+
 #include <machine/specialreg.h>
 #include <machine/cpufunc.h>
 #include <machine/segments.h>
@@ -22,8 +22,9 @@
 #include <machine/segments.h>
 #include <machine/md_var.h>
 #include <machine/smp.h>
-//#include <x86/apicvar.h>
 
+#include <vm/vm.h>
+#include <vm/pmap.h>
 
 void vmm_host_state_init(void);
 int vmm_init(void);
