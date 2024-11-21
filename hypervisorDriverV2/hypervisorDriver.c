@@ -26,6 +26,11 @@
 #include <vm/vm.h>
 #include <vm/pmap.h>
 
+
+#define EFER_ADDR 0xC0000080
+#define VM_CR_ADDR 0xC0010114
+#define VM_HSAVE_PA_ADDR 0xC0010117
+
 enum SVM_SUPPORT {
     SVM_ALLOWED,
     SVM_NOT_AVAIL,
@@ -33,9 +38,31 @@ enum SVM_SUPPORT {
     SVM_DISABLED_WITH_KEY
 };
 
+void readMSR_U64(uint32_t id, uint64_t *complete);
+void readMSR(uint32_t id, uint32_t *hi, uint32_t *lo);
+void writeMSR(uint32_t id, uint32_t hi, uint32_t lo);
+
 void inline AsmEnableSvmOperation(void);
 enum SVM_SUPPORT hasSvmSupport(void);
 bool isSvmDisabled_VM_CR(void);
+
+int vmm_init(void);
+
+void readMSR_U64(uint32_t id, uint64_t *complete) {
+    uint32_t hi, lo;
+
+    __asm __volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(id));
+
+    *complete = ((uint64_t)hi << 32) | lo;
+}
+
+void readMSR(uint32_t id, uint32_t *hi, uint32_t *lo) {
+    __asm __volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(id));
+}
+
+void writeMSR(uint32_t id, uint32_t hi, uint32_t lo) {
+    __asm __volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(id));
+}
 
 bool isSvmDisabled_VM_CR(void) {
     uint32_t vm_cr;
@@ -50,7 +77,7 @@ bool isSvmDisabled_VM_CR(void) {
     return (bool)(vm_cr & (1 << 4));
 }
 
-static enum SVM_SUPPORT hasSvmSupport(void) {
+enum SVM_SUPPORT hasSvmSupport(void) {
     uint32_t cpuid_response;
 
     // Získání CPUID pro kontrolu podpory SVM
@@ -92,7 +119,7 @@ static enum SVM_SUPPORT hasSvmSupport(void) {
 }
 
 // Function to enable AMD-V by setting the SVM bit (12th bit) in the EFER register
-static void inline AsmEnableSvmOperation(void) {
+void inline AsmEnableSvmOperation(void) {
     __asm__ __volatile__ (
         "mov $0xC0000080, %%ecx\n"  // EFER MSR address
         "rdmsr\n"                   // Read the current value of EFER into EAX:EDX
@@ -103,6 +130,22 @@ static void inline AsmEnableSvmOperation(void) {
         : "eax", "ecx", "edx"
         );
 }
+
+bool inline hasMsrSupport(void) {
+    uint32_t cpuid_response;
+
+    __asm__ __volatile__ (
+        "mov $0x00000001, %%eax\n\t"   // Nastav EAX na 1 pro CPUID funkci 1
+        "cpuid\n\t"                     // Zavolej CPUID
+        "mov %%edx, %0\n\t"             // Ulož obsah registru EDX do cpuid_response
+        : "=r" (cpuid_response)         // Výstupní operandy
+        :                               // Žádné vstupní operandy
+        : "rax", "rbx", "rcx", "rdx"    // Clobber list - registry, které mohou být změněny
+        );
+
+    return (cpuid_response & (1 << 5)) != 0;  // Kontrola 5. bitu v EDX
+}
+
 
 int
 vmm_init(void) {
@@ -138,14 +181,14 @@ vmm_init(void) {
 */
     return error;
 }
-
+/*
 void free_vmcb(void) {
     if (vmcb) {
         free(vmcb, M_DEVBUF);
         vmcb = NULL;
         printf("[*] VMCB uvolněno.\n");
     }
-}
+}*/
 static int
 hypervisor_loader(module_t mod, int what, void *arg)
 {
