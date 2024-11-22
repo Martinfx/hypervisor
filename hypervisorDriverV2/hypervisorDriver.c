@@ -197,21 +197,14 @@ hypervisor_loader(module_t mod, int what, void *arg)
     case MOD_LOAD:
         printf("[*] Loading hypervisor module.\n");
         error = vmm_init();
-        char buffer_[20];
-
-        snprintf(buffer_, sizeof(buffer_), "%d", error);
-        printf("Error number: %s\n", buffer_);
         break;
     case MOD_UNLOAD:
         printf("[*] Unloading hypervisor module.\n");
-
-        char buffer[20];
-
-        snprintf(buffer, sizeof(buffer), "%d", error);
-        printf("Error number: %s\n", buffer);
-
  //       free(vmcb, M_DEVBUF);
  //       free(hsave, M_DEVBUF);
+        break;
+    case MOD_SHUTDOWN:
+        printf("[*] Shutdown hypervisor module.\n");
         break;
     default:
         error = EOPNOTSUPP;
