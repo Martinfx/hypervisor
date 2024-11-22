@@ -201,7 +201,7 @@ hypervisor_loader(module_t mod, int what, void *arg)
 
         snprintf(buffer_, sizeof(buffer_), "%d", error);
         printf("Error number: %s\n", buffer_);
-
+        break;
     case MOD_UNLOAD:
         printf("[*] Unloading hypervisor module.\n");
 
